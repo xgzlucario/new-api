@@ -232,10 +232,21 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 		oaiUsage.ClaudeCacheCreation5mTokens,
 		oaiUsage.ClaudeCacheCreation1hTokens,
 	)
+	// OpenAI 语义下 prompt_tokens 已包含 cache_read + cache_creation；
+	// Anthropic 语义下 input_tokens 应当不含 cache，反向转换要减回去。
+	cacheCreationTotal := cacheCreation5m + cacheCreation1h
+	inputTokens := oaiUsage.PromptTokens - oaiUsage.PromptTokensDetails.CachedTokens - cacheCreationTotal
+	if inputTokens < 0 {
+		inputTokens = 0
+	}
+	cacheCreationInputTokens := oaiUsage.PromptTokensDetails.CachedCreationTokens
+	if cacheCreationTotal > cacheCreationInputTokens {
+		cacheCreationInputTokens = cacheCreationTotal
+	}
 	usage := &dto.ClaudeUsage{
-		InputTokens:              oaiUsage.PromptTokens,
+		InputTokens:              inputTokens,
 		OutputTokens:             oaiUsage.CompletionTokens,
-		CacheCreationInputTokens: oaiUsage.PromptTokensDetails.CachedCreationTokens,
+		CacheCreationInputTokens: cacheCreationInputTokens,
 		CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
 	}
 	if cacheCreation5m > 0 || cacheCreation1h > 0 {
